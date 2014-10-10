@@ -68,6 +68,66 @@ class EdifyGenerator(object):
     with temporary=True) to this one."""
     self.script.extend(other.script)
 
+  def Aroma(self):
+    self.script.append('unmount("/system");')
+    self.script.append('unmount("/cache");')
+    self.script.append('    if')
+    self.script.append('      file_getprop("/tmp/aroma/system.prop","selected.0") == "1"')
+    self.script.append('    then')
+    self.script.append('      ui_print("Formatting /system as f2fs");')
+    self.script.append('      run_program("/sbin/mkfs.f2fs", "/dev/block/mmcblk0p22");')
+    self.script.append('    endif;')
+    self.script.append('    if')
+    self.script.append('      file_getprop("/tmp/aroma/system.prop","selected.0") == "2"')
+    self.script.append('    then')
+    self.script.append('      ui_print("Formatting /system as ext4");')
+    self.script.append('      format("ext4", "EMMC", "/dev/block/mmcblk0p22", "0", "/system");')
+    self.script.append('    endif;')
+    self.script.append('    if')
+    self.script.append('      file_getprop("/tmp/aroma/cache.prop","selected.0") == "2"')
+    self.script.append('    then')
+    self.script.append('      ui_print("Formatting /cache as f2fs");')
+    self.script.append('      run_program("/sbin/mkfs.f2fs", "/dev/block/mmcblk0p23");')
+    self.script.append('    endif;')
+    self.script.append('    if')
+    self.script.append('      file_getprop("/tmp/aroma/cache.prop","selected.0") == "3"')
+    self.script.append('    then')
+    self.script.append('      ui_print("Formatting /cache as ext4");')
+    self.script.append('      format("ext4", "EMMC", "/dev/block/mmcblk0p23", "0", "/cache");')
+    self.script.append('    endif;')
+    self.script.append('unmount("/system");')
+    self.script.append('unmount("/cache");')
+
+  def AromaData(self):
+    self.script.append('    if')
+    self.script.append('      file_getprop("/tmp/aroma/selinux.prop","selected.0") == "1"')
+    self.script.append('    then')
+    self.script.append('      ui_print("SELinux mode: permissive");')
+    self.script.append('      run_program("/sbin/mount", "-t", "auto", "/dev/block/mmcblk0p22", "/system");')
+    self.script.append('      package_extract_file("extra/69disablesl", "/system/etc/init.d/69disablesl");')
+    self.script.append('      set_perm(0, 2000, 0777, "/system/etc/init.d/69disablesl");')
+    self.script.append('      unmount("/system");')
+    self.script.append('    endif;')
+    self.script.append('    if')
+    self.script.append('      file_getprop("/tmp/aroma/selinux.prop","selected.0") == "2"')
+    self.script.append('    then')
+    self.script.append('      ui_print("SELinux mode: enforcing");')
+    self.script.append('    endif;')
+    self.script.append('unmount("/data");')
+    self.script.append('    if')
+    self.script.append('      file_getprop("/tmp/aroma/data.prop","selected.0") == "2"')
+    self.script.append('    then')
+    self.script.append('      ui_print("Formatting /data as f2fs");')
+    self.script.append('      run_program("/sbin/mkfs.f2fs", "/dev/block/mmcblk0p25");')
+    self.script.append('    endif;')
+    self.script.append('    if')
+    self.script.append('      file_getprop("/tmp/aroma/data.prop","selected.0") == "3"')
+    self.script.append('    then')
+    self.script.append('      ui_print("Formatting /data as ext4");')
+    self.script.append('      format("ext4", "EMMC", "/dev/block/mmcblk0p25", "0", "/data");')
+    self.script.append('    endif;')
+    self.script.append('unmount("/data");')
+
   def AssertSomeFingerprint(self, *fp):
     """Assert that the current system build fingerprint is one of *fp."""
     if not fp:
@@ -180,7 +240,11 @@ class EdifyGenerator(object):
     fstab = self.info.get("fstab", None)
     if fstab:
       p = fstab[mount_point]
-      self.script.append('mount("%s", "%s", "%s", "%s");' %
+      if p.fs_type == "f2fs":
+          self.script.append('run_program("/sbin/mount", "-t", "auto", "%s", "%s");' %
+                             (p.device, p.mount_point))
+      else:
+          self.script.append('mount("%s", "%s", "%s", "%s");' %
                          (p.fs_type, common.PARTITION_TYPES[p.fs_type],
                           p.device, p.mount_point))
       self.mounts.add(p.mount_point)
@@ -215,7 +279,11 @@ class EdifyGenerator(object):
     fstab = self.info.get("fstab", None)
     if fstab:
       p = fstab[partition]
-      self.script.append('format("%s", "%s", "%s", "%s", "%s");' %
+      if p.fs_type == "f2fs":
+          self.script.append('run_program("/sbin/mkfs.f2fs", "%s");' %
+                             (p.device))
+      else:
+        self.script.append('format("%s", "%s", "%s", "%s", "%s");' %
                          (p.fs_type, common.PARTITION_TYPES[p.fs_type],
                           p.device, p.length, p.mount_point))
 
@@ -343,3 +411,4 @@ class EdifyGenerator(object):
       data = open(os.path.join(input_path, "updater")).read()
     common.ZipWriteStr(output_zip, "META-INF/com/google/android/update-binary",
                        data, perms=0755)
+
